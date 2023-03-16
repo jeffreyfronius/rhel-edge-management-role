@@ -13,6 +13,10 @@
       body_format: json
     register: build_group_result 
 
+  - name: Print the build_group_result
+    ansible.builtin.debug:
+      var: build_group_result.json
+
   - name: Copying over device-group.json
     template:
       src: device-group.json.j2
@@ -22,8 +26,9 @@
       remote_src: no
       #mode: 0755
     delegate_to: localhost
-    #when: (build_group_result.json.data | length) == 0
-    ignore_errors: true
+    when: build_group_result.json.count == 0
+    ignore_errors: false
+
 
   - name: Create device group 
     uri:
@@ -35,10 +40,11 @@
       url: https://console.redhat.com/api/edge/v1/device-groups/
       body_format: json
       method: POST
-      body: "{{ lookup('file', '{{ workspace}}/device-group.json') }}"
+      body: "{{ lookup('file', workspace + '/device-group.json') }}"
       status_code: 200
-    #when: (build_group_result.json.data | length) == 0
-    ignore_errors: true
+    when: build_group_result.json.count == 0
+    delegate_to: localhost
+    ignore_errors: false
 
   tags: 
   - create_device_group
