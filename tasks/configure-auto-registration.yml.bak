@@ -77,17 +77,60 @@
         RHC_FIRSTBOOT=true
         INSIGHTS_DISPLAY_NAME="{{ image_name }}-{{ random_hostname }}"
 
-  - name: Copying over Sample Kickstart
-    template:
-      src: sample.ks.j2
-      dest:  "{{ workspace}}/template.ks"
-      #owner: "{{ ansible_user }}"
-      #group: "{{ ansible_user }}"
-      remote_src: no
-      #mode: 0755
-    ignore_errors: false
+  - name: Download kickstart
+    get_url:
+      url: "{{ default_kickstart_url }}"
+      dest: "{{ workspace }}/{{ kickstart_file }}"
     when: enable_kickstart == true
 
+  - name: Replace hostname
+    ansible.builtin.replace:
+      path: "{{ workspace }}/{{ kickstart_file }}"
+      regexp: '(CHANGE_HOSTNAME)'
+      replace: "{{ image_name }}-{{ random_hostname }}"
+    when: enable_kickstart == true
+
+  - name: Replace username
+    ansible.builtin.replace:
+      path: "{{ workspace }}/{{ kickstart_file }}"
+      regexp: '(CHANGE_USERNAME)'
+      replace: "{{ username }}"
+    when: enable_kickstart == true
+
+  - name: Replace ssh
+    ansible.builtin.replace:
+      path: "{{ workspace }}/{{ kickstart_file }}"
+      regexp: '(CHANGE_SSH)'
+      replace: "{{ ssh_pub_key }}"
+    when: enable_kickstart == true
+
+  - name: Replace username
+    ansible.builtin.replace:
+      path: "{{ workspace }}/{{ kickstart_file }}"
+      regexp: '(CHANGE_RHEL_USERNAME)'
+      replace: "{{ rh_authentication_basic_username }}"
+    when: enable_kickstart == true
+
+  - name: Replace password
+    ansible.builtin.replace:
+      path: "{{ workspace }}/{{ kickstart_file }}"
+      regexp: '(CHANGE_PASSWORD)'
+      replace: "{{ rh_authentication_basic_password }}"
+    when: enable_kickstart == true
+
+  - name: Replace pull secret
+    ansible.builtin.replace:
+      path: "{{ workspace }}/{{ kickstart_file }}"
+      regexp: '(CHANGE_PULLSECRET)'
+      replace: "{{ pull_secret }}"
+    when: microshift_kickstart == true
+
+  - name: Copy file with new name
+    ansible.builtin.copy:
+      remote_src: true
+      src: "{{ workspace }}/{{ kickstart_file }}"
+      dest: "{{ workspace }}/template.ks"
+    when: enable_kickstart == true
 
   - name: Run fleet-management container 
     containers.podman.podman_container:
@@ -107,7 +150,7 @@
       device: "{{ podman_device | default(omit) }}"
       label: "{{ podman_label | default(omit) }}"
       cap_add: "{{ podman_cap_add | default(omit) }}"
-    when: enable_kickstart == true
+    when: enable_kickstart == false
     
   - name: Run fleet-management container using kickstart
     containers.podman.podman_container:
@@ -165,15 +208,5 @@
       path: "{{ workspace }}"
       state: absent
     when: remove_workspace == true
-
-  - name: Get iso path information
-    stat:
-      path: "{{ iso_download_directory }}/{{ image_name }}_fleet_out.iso"
-    register: file_info
-
-  - debug:
-      var: file_info.stat.dirname
   tags:
   - configure_auto_registration
-
-  
